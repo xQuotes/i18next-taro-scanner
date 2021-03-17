@@ -99,6 +99,8 @@ _Note: Globbing patterns should be wrapped in single quotes._
 ```js
 const fs = require('fs');
 const chalk = require('chalk');
+const path = require("path");
+const typescript = require("typescript");
 
 module.exports = {
     input: [
@@ -154,18 +156,24 @@ module.exports = {
         "use strict";
         const parser = this.parser;
         const content = fs.readFileSync(file.path, enc);
+        const { base, ext } = path.parse(file.path);
         let count = 0;
 
-        parser.parseFuncFromString(content, { list: ['i18next._', 'i18next.__'] }, (key, options) => {
-            parser.set(key, Object.assign({}, options, {
-                nsSeparator: false,
-                keySeparator: false
-            }));
-            ++count;
-        });
-
-        if (count > 0) {
-            console.log(`i18next-scanner: count=${chalk.cyan(count)}, file=${chalk.yellow(JSON.stringify(file.relative))}`);
+        if ([".ts", ".tsx", ".js", ".jsx"].includes(ext) && !base.includes(".d.ts")) {
+            const content = fs.readFileSync(file.path, enc);
+      
+            const { outputText } = typescript.transpileModule(content, {
+              compilerOptions: {
+                target: "ES2017",
+                "experimentalDecorators": true,        /* 启用s experimental support for ES7 decorators. */
+                "emitDecoratorMetadata": true,         /* 启用s experimental support for emitting type metadata for decorators. */
+                "allowJs": true
+              },
+              fileName: path.basename(file.path),
+            });
+      
+            parser.parseTransFromString(outputText);
+            parser.parseFuncFromString(outputText);
         }
 
         done();
